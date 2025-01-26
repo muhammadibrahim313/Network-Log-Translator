@@ -6,5 +6,6 @@ groq
 speechrecognition
 pyperclip
 gtts
+streamlit-webrtc
 
 
