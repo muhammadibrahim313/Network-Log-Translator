@@ -1,9 +1,23 @@
+import os
 import streamlit as st
+import pyperclip
 from groq import Groq
-import speech_recognition as sr
+from gtts import gTTS
+import tempfile
+from dotenv import load_dotenv
+from streamlit_webrtc import webrtc_streamer, WebRtcMode, AudioProcessorBase
+import queue
 
-# Configuration and API Setup
-st.set_page_config(page_title="Network Log Translator", page_icon="🌐")
+# Load environment variables
+load_dotenv()
+
+# Initialize Groq client
+def initialize_groq_client():
+    api_key = os.getenv("GROQ_API_KEY")
+    if not api_key:
+        st.error("GROQ_API_KEY not found in .env file")
+        return None
+    return Groq(api_key=api_key)
 
 # Predefined Common Network Errors
 COMMON_ERRORS = {
@@ -16,175 +30,230 @@ COMMON_ERRORS = {
 
 # Language to BCP-47 Code Mapping for Speech Recognition
 LANGUAGE_CODES = {
-    'English': 'en-US',
-    'Urdu': 'ur-PK', 
-    'Spanish': 'es-ES', 
-    'French': 'fr-FR', 
-    'Arabic': 'ar-SA',
-    # South African Languages
-    'Afrikaans': 'af-ZA',
-    'Zulu': 'zu-ZA',
-    'Xhosa': 'xh-ZA',
-    'Sotho': 'st-ZA',
+    'English': 'en-US', 'Urdu': 'ur-PK', 'Spanish': 'es-ES',
+    'French': 'fr-FR', 'Arabic': 'ar-SA', 'Afrikaans': 'af-ZA',
+    'Zulu': 'zu-ZA', 'Xhosa': 'xh-ZA', 'Sotho': 'st-ZA',
     'Tswana': 'tn-ZA'
 }
 
-def initialize_groq_client():
-    """Initialize Groq API client."""
-    try:
-        return Groq(api_key=st.secrets["GROQ_API_KEY"])
-    except KeyError:
-        st.error("Groq API key not found. Please set it in Streamlit secrets.")
-        return None
+# Error classification system
+def classify_error(text):
+    error_types = {
+        "DNS": ["dns", "domain", "server"],
+        "SSL": ["ssl", "certificate", "handshake"],
+        "Connection": ["connection", "timeout", "refused", "route"]
+    }
+    text_lower = text.lower()
+    for etype, keywords in error_types.items():
+        if any(kw in text_lower for kw in keywords):
+            return etype
+    return "Network"
 
+# Severity detection
+def get_severity(text):
+    text_lower = text.lower()
+    if "critical" in text_lower: return "Critical"
+    if "warning" in text_lower: return "Warning"
+    if "severe" in text_lower: return "Critical"
+    return "Info"
+
+# Generate explanation using Groq API
 def generate_explanation(client, log_text, language='en'):
-    """Generate explanation using Groq API, optionally in specified language."""
     try:
-        # Language-specific system prompts
-        language_prompts = {
+        system_prompts = {
             'en': "You are a network troubleshooting assistant in English.",
             'es': "Eres un asistente de solución de problemas de red en español.",
             'fr': "Vous êtes un assistant de dépannage réseau en français.",
             'ur': "آپ اردو میں نیٹ ورک ٹروبل شوٹنگ اسسٹنٹ ہیں۔",
             'ar': "أنت مساعد استكشاف أخطاء الشبكة باللغة العربية.",
-            # South African Languages
             'af': "Jy is 'n netwerk-probleemoplossingsassistent in Afrikaans.",
             'zu': "Ungusizo lokuxazulula amaproblem emseth-network ngesiZulu.",
             'xh': "Ungomnxeba wokusungula amaproblem emanyango ekuqhubekeni ngesiXhosa.",
             'st': "O moagi wa bothata ba network ka Sesotho.",
             'tn': "O thutapulamolemo ya network ka Setswana."
         }
-
-        # Select the appropriate system prompt, default to English
-        system_prompt = language_prompts.get(language, language_prompts['en'])
-
-        chat_completion = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+        
+        response = client.chat.completions.create(
+            model="llama3-70b-8192",
             messages=[
-                {"role": "system", "content": f"{system_prompt} Provide clear, detailed explanations of network errors with comprehensive troubleshooting steps."},
-                {"role": "user", "content": f"Provide a comprehensive explanation and detailed troubleshooting steps for this network error: {log_text}"}
+                {"role": "system", "content": f"{system_prompts.get(language, 'en')} Provide detailed analysis and step-by-step solutions."},
+                {"role": "user", "content": f"Analyze this network error: {log_text}"}
             ],
-            max_tokens=1500  # Increased max tokens
+            temperature=0.3,
+            max_tokens=1200
         )
-        return chat_completion.choices[0].message.content
+        return response.choices[0].message.content
     except Exception as e:
-        st.error(f"Error processing log: {e}")
-        return "Unable to process the log. Please check the input."
+        st.error(f"API Error: {str(e)}")
+        return None
 
-def speech_to_text(language_code):
-    """Convert speech to text for a specific language."""
-    recognizer = sr.Recognizer()
+# Text-to-speech conversion
+def text_to_speech(text, language='en'):
+    """Convert text to speech using gTTS."""
+    try:
+        tts = gTTS(text=text, lang=language, slow=False)
+        temp_audio = tempfile.NamedTemporaryFile(delete=False, suffix='.mp3')
+        tts.save(temp_audio.name)
+        return temp_audio.name
+    except Exception as e:
+        st.error(f"Error generating speech: {str(e)}")
+        return None
+
+# Audio Processor for streamlit-webrtc
+class AudioProcessor(AudioProcessorBase):
+    def __init__(self):
+        self.frames_queue = queue.Queue()
+
+    def recv(self, frame):
+        self.frames_queue.put(frame)
+        return frame
+
+# Translator Page
+def translator_page():
+    st.title("🌐 Smart Network Troubleshooter")
     
-    with sr.Microphone() as source:
-        st.info(f"Listening... Please speak in {language_code}")
-        recognizer.adjust_for_ambient_noise(source, duration=1)
-        try:
-            audio = recognizer.listen(source, timeout=5)
-            text = recognizer.recognize_google(audio, language=language_code)
-            return text
-        except sr.UnknownValueError:
-            st.warning("Could not understand audio. Please try again.")
-            return ""
-        except sr.RequestError as e:
-            st.error(f"Could not request results; {e}")
-            return ""
-        except Exception as e:
-            st.error(f"An error occurred: {e}")
-            return ""
-
-def main():
-    st.title("🌐 Network Log Translator")
-    st.subheader("Simplify Complex Network Errors")
-
-    # Groq Client Initialization
+    # Initialize session state
+    if 'history' not in st.session_state:
+        st.session_state.history = []
+    
+    # Initialize Groq client
     groq_client = initialize_groq_client()
     if not groq_client:
         return
 
-    # Common Error Buttons in Grid Layout
-    st.write("**Quick Select Common Errors:**")
-    
-    # Create a 2x3 grid of buttons
-    grid_rows = [
-        st.columns(3),
-        st.columns(3)
-    ]
-    
-    # Flatten the list of common errors
-    error_items = list(COMMON_ERRORS.items())
-    
-    # Populate buttons in grid
-    for row_idx, row in enumerate(grid_rows):
-        for col_idx, col in enumerate(row):
-            # Calculate the index in the flattened error list
-            list_idx = row_idx * 3 + col_idx
-            
-            # Check if we have an error for this position
-            if list_idx < len(error_items):
-                error, desc = error_items[list_idx]
-                if col.button(error, key=f"error_{list_idx}", help=desc, use_container_width=True, type="secondary"):
-                    st.session_state.input_text = desc
+    # Common Errors Grid
+    st.subheader("Common Network Issues")
+    cols = st.columns(3)
+    for idx, (error, desc) in enumerate(COMMON_ERRORS.items()):
+        with cols[idx % 3]:
+            if st.button(error, help=desc, key=f"err_{idx}"):
+                st.session_state.input_text = desc
 
-    # Language Selection (Including South African Languages)
-    languages = {
-        'English': 'en', 
-        'Urdu': 'ur', 
-        'Spanish': 'es', 
-        'French': 'fr', 
-        'Arabic': 'ar',
-        # South African Languages
-        'Afrikaans': 'af',
-        'Zulu': 'zu',
-        'Xhosa': 'xh',
-        'Sotho': 'st',
-        'Tswana': 'tn'
-    }
-    selected_lang = st.selectbox("Select Output Language", list(languages.keys()))
+    # Language Selection
+    lang_col1, lang_col2 = st.columns([2, 1])
+    with lang_col1:
+        selected_lang = st.selectbox("Output Language", list(LANGUAGE_CODES.keys()))
+    with lang_col2:
+        input_method = st.radio("Input Method", ["Text", "Voice"])
 
-    # Input Method Selection
-    input_method = st.radio("Choose Input Method", ["Text", "Voice"])
-
-    # Input Area or Voice Input
+    # Input Section
+    input_text = ""
     if input_method == "Text":
-        st.session_state.input_text = st.text_area(
-            "Enter network log or error details", 
-            value=st.session_state.get('input_text', ''),
-            placeholder='Enter network log or error details here.'
-        )
+        input_text = st.text_area("Network Error Details", 
+                                value=st.session_state.get('input_text', ''),
+                                height=100)
     else:
-        # Voice Input
-        voice_lang = st.selectbox("Select Voice Input Language", list(LANGUAGE_CODES.keys()))
-        
-        if st.button("Start Voice Input"):
-            # Perform speech-to-text conversion
-            voice_input = speech_to_text(LANGUAGE_CODES[voice_lang])
-            if voice_input:
-                st.session_state.input_text = voice_input
-                st.success(f"Recognized Text: {voice_input}")
+        st.info("Click the button below to start recording your voice.")
+        webrtc_ctx = webrtc_streamer(
+            key="voice-recorder",
+            mode=WebRtcMode.SENDONLY,
+            audio_processor_factory=AudioProcessor,
+            media_stream_constraints={"audio": True},
+        )
+        if webrtc_ctx.audio_processor:
+            st.info("Recording... Speak now.")
+            try:
+                audio_frames = []
+                while True:
+                    frame = webrtc_ctx.audio_processor.frames_queue.get(timeout=5)
+                    audio_frames.append(frame)
+            except queue.Empty:
+                st.warning("No audio detected. Please try again.")
+            else:
+                input_text = "Voice input detected (transcription not implemented)."
+                st.session_state.input_text = input_text
 
-    # Action Buttons
-    col1, col2 = st.columns(2)
-    translate_clicked = col1.button("Translate")
-    clear_clicked = col2.button("Clear")
-
-    # Clear functionality
-    if clear_clicked:
-        st.session_state.input_text = ''
-
-    # Translation and Explanation Process
-    if translate_clicked:
-        if not st.session_state.input_text.strip():
-            st.warning("Please enter a network log or error message.")
+    # Main Processing
+    if st.button("Analyze Error", type="primary"):
+        if not input_text.strip():
+            st.warning("Please enter error details")
             return
 
-        with st.spinner('Processing network log...'):
-            # Generate Explanation in Selected Language
-            lang_code = languages[selected_lang]
-            explanation = generate_explanation(groq_client, st.session_state.input_text, lang_code)
+        with st.status("🔍 Analyzing Error...", expanded=True) as status:
+            # Generate Explanation
+            lang_code = next(
+                (v[:2] for k, v in LANGUAGE_CODES.items() if k.lower().startswith(selected_lang[:2].lower())),
+                'en'  # Default to English
+            )
+            explanation = generate_explanation(groq_client, input_text, lang_code)
             
-            # Display Results with Expander to show full content
-            with st.expander(f"Explanation ({selected_lang})", expanded=True):
-                st.write(explanation)
+            if not explanation:
+                st.error("Failed to generate explanation")
+                return
 
+            # Error Classification
+            error_category = classify_error(explanation)
+            severity_level = get_severity(explanation)
+            
+            # Update History
+            st.session_state.history.append({
+                'error': input_text,
+                'explanation': explanation,
+                'category': error_category,
+                'severity': severity_level
+            })
+            
+            status.update(label="Analysis Complete", state="complete")
+
+        # Display Results
+        st.subheader(f"{severity_level} Issue", divider="rainbow")
+        st.markdown(f"**Category:** :label: `{error_category}`")
+        
+        with st.expander("Detailed Analysis", expanded=True):
+            st.markdown(explanation)
+
+        # Text-to-Speech for Explanation
+        if st.button("🔊 Listen to Explanation"):
+            audio_file = text_to_speech(explanation, lang_code)
+            if audio_file:
+                st.audio(audio_file)
+                os.unlink(audio_file)  # Clean up temporary file
+
+        # Quick Fixes
+        QUICK_FIXES = {
+            "DNS": "ipconfig /flushdns",
+            "SSL": "sudo update-ca-certificates",
+            "Connection": "ping 8.8.8.8",
+            "Network": "netsh winsock reset"
+        }
+        
+        if error_category in QUICK_FIXES:
+            fix = QUICK_FIXES[error_category]
+            st.code(fix, language="bash")
+            if st.button("📋 Copy Command", key="copy_cmd"):
+                pyperclip.copy(fix)
+                st.toast("Command copied to clipboard!")
+
+        # History Section
+        st.subheader("Recent Analyses", divider="gray")
+        for entry in reversed(st.session_state.history[-3:]):
+            with st.expander(f"{entry['severity']} - {entry['error'][:30]}..."):
+                st.caption(f"**Category:** {entry['category']}")
+                st.write(entry['explanation'])
+                
+    # Feedback System
+    st.divider()
+    feedback = st.radio("Was this helpful?", [":thumbsup:", ":thumbsdown:"], 
+                       index=None, horizontal=True)
+    if feedback:
+        st.success("Thank you for your feedback!")
+
+# Main function
+def main():
+    st.set_page_config(
+        page_title="Network Log Translator",
+        page_icon="🌐",
+        layout="wide"
+    )
+
+    # Sidebar Navigation
+    st.sidebar.title("Navigation")
+    page = st.sidebar.radio("Go to", ["🌐 Translator"])
+
+    # Page Routing
+    if page == "🌐 Translator":
+        translator_page()
+
+# Run the app
 if __name__ == "__main__":
     main()
