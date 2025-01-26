@@ -127,7 +127,7 @@ def landing_page():
 
     Get started by navigating to the **Translator** page from the sidebar.
     """)
-    st.image("https://via.placeholder.com/800x400.png?text=Network+Log+Translator+Demo", use_column_width=True)
+    st.image("https://ideogram.ai/assets/image/lossless/response/fjemlPTxRSagPZPIt9w44Q", use_column_width=True)
 
 # About Us Page
 def about_us_page():
