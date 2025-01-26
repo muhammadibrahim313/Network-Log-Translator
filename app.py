@@ -3,6 +3,9 @@ import streamlit as st
 import speech_recognition as sr
 from dotenv import load_dotenv
 import pyperclip
+import sounddevice as sd
+import soundfile as sf
+import numpy as np
 
 # Fix Groq import
 try:
@@ -98,20 +101,33 @@ def generate_explanation(client, log_text, language='en'):
         st.error(f"API Error: {str(e)}")
         return None
 
-# Speech-to-text conversion
+# Speech-to-text conversion using sounddevice
 def speech_to_text(language_code):
     r = sr.Recognizer()
-    with sr.Microphone() as source:
-        st.info("Listening... (5 second timeout)")
-        try:
-            audio = r.listen(source, timeout=5)
+    duration = 5  # seconds
+    st.info("Listening... (5 second timeout)")
+    
+    try:
+        # Record audio using sounddevice
+        fs = 16000  # Sample rate
+        recording = sd.rec(int(duration * fs), samplerate=fs, channels=1, dtype='float32')
+        sd.wait()  # Wait until recording is finished
+        
+        # Save the recording to a temporary file
+        temp_file = "temp.wav"
+        sf.write(temp_file, recording, fs)
+        
+        # Recognize the audio using speech_recognition
+        with sr.AudioFile(temp_file) as source:
+            audio = r.record(source)
             return r.recognize_google(audio, language=language_code)
-        except sr.WaitTimeoutError:
-            st.warning("Listening timed out")
-            return ""
-        except Exception as e:
-            st.error(f"Recognition error: {str(e)}")
-            return ""
+    except Exception as e:
+        st.error(f"Recognition error: {str(e)}")
+        return ""
+
+# Check if running in Streamlit Cloud
+def is_streamlit_cloud():
+    return "STREAMLIT_CLOUD" in os.environ
 
 # Landing Page
 def landing_page():
@@ -189,11 +205,14 @@ def translator_page():
                                 value=st.session_state.get('input_text', ''),
                                 height=100)
     else:
-        voice_lang = st.selectbox("Voice Input Language", list(LANGUAGE_CODES.keys()))
-        if st.button("🎤 Start Recording"):
-            input_text = speech_to_text(LANGUAGE_CODES[voice_lang])
-            if input_text:
-                st.session_state.input_text = input_text
+        if is_streamlit_cloud():
+            st.warning("Voice input is not supported in Streamlit Cloud. Please use text input.")
+        else:
+            voice_lang = st.selectbox("Voice Input Language", list(LANGUAGE_CODES.keys()))
+            if st.button("🎤 Start Recording"):
+                input_text = speech_to_text(LANGUAGE_CODES[voice_lang])
+                if input_text:
+                    st.session_state.input_text = input_text
 
     # Main Processing
     if st.button("Analyze Error", type="primary"):
