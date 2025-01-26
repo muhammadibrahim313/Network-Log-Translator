@@ -7,10 +7,15 @@
 
 import os
 import streamlit as st
-from groq import Groq
 import speech_recognition as sr
 from dotenv import load_dotenv
 import pyperclip
+
+# Fix Groq import
+try:
+    from groq import Groq
+except ImportError:
+    from groq.client import Groq
 
 # Load environment variables
 load_dotenv()
@@ -27,10 +32,18 @@ COMMON_ERRORS = {
     "SSL Handshake Failed": "Secure connection could not be established.",
 }
 
+# Language to BCP-47 Code Mapping for Speech Recognition
 LANGUAGE_CODES = {
-    'English': 'en-US', 'Urdu': 'ur-PK', 'Spanish': 'es-ES', 'French': 'fr-FR',
-    'Arabic': 'ar-SA', 'Afrikaans': 'af-ZA', 'Zulu': 'zu-ZA', 'Xhosa': 'xh-ZA',
-    'Sotho': 'st-ZA', 'Tswana': 'tn-ZA'
+    'English': 'en-US',
+    'Urdu': 'ur-PK',
+    'Spanish': 'es-ES',
+    'French': 'fr-FR',
+    'Arabic': 'ar-SA',
+    'Afrikaans': 'af-ZA',
+    'Zulu': 'zu-ZA',
+    'Xhosa': 'xh-ZA',
+    'Sotho': 'st-ZA',
+    'Tswana': 'tn-ZA'
 }
 
 # Initialize Groq client
@@ -62,6 +75,7 @@ def get_severity(text):
     if "severe" in text_lower: return "Critical"
     return "Info"
 
+# Generate explanation using Groq API
 def generate_explanation(client, log_text, language='en'):
     try:
         system_prompts = {
@@ -91,6 +105,7 @@ def generate_explanation(client, log_text, language='en'):
         st.error(f"API Error: {str(e)}")
         return None
 
+# Speech-to-text conversion
 def speech_to_text(language_code):
     r = sr.Recognizer()
     with sr.Microphone() as source:
@@ -105,6 +120,7 @@ def speech_to_text(language_code):
             st.error(f"Recognition error: {str(e)}")
             return ""
 
+# Main function
 def main():
     st.title("🌐 Smart Network Troubleshooter")
     
@@ -153,7 +169,10 @@ def main():
 
         with st.status("🔍 Analyzing Error...", expanded=True) as status:
             # Generate Explanation
-            lang_code = [k for k, v in LANGUAGE_CODES.items() if v.startswith(selected_lang[:2])][0][:2]
+            lang_code = next(
+                (v[:2] for k, v in LANGUAGE_CODES.items() if k.lower().startswith(selected_lang[:2].lower())),
+                'en'  # Default to English
+            )
             explanation = generate_explanation(groq_client, input_text, lang_code)
             
             if not explanation:
@@ -210,5 +229,6 @@ def main():
     if feedback:
         st.success("Thank you for your feedback!")
 
+# Run the app
 if __name__ == "__main__":
     main()
