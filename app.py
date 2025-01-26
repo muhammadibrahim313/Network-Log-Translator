@@ -5,6 +5,7 @@ from groq import Groq
 from gtts import gTTS
 import tempfile
 from dotenv import load_dotenv
+from streamlit_webrtc import webrtc_streamer, WebRtcMode
 
 # Load environment variables
 load_dotenv()
@@ -132,9 +133,19 @@ def translator_page():
                                 value=st.session_state.get('input_text', ''),
                                 height=100)
     else:
-        if st.button("🎤 Start Recording (Simulated)"):
-            st.info("Simulating voice input... Please type your input below.")
-            input_text = st.text_input("Type your voice input here:")
+        st.info("Click the button below to start recording your voice.")
+        webrtc_ctx = webrtc_streamer(
+            key="voice-recorder",
+            mode=WebRtcMode.SENDONLY,
+            audio_receiver_size=256,
+            media_stream_constraints={"audio": True},
+        )
+        if webrtc_ctx.audio_receiver:
+            st.info("Recording... Speak now.")
+            audio_frames = webrtc_ctx.audio_receiver.get_frames(timeout=5)
+            if audio_frames:
+                input_text = "Voice input detected (transcription not implemented)."
+                st.session_state.input_text = input_text
 
     # Main Processing
     if st.button("Analyze Error", type="primary"):
