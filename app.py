@@ -2,7 +2,7 @@ import os
 import streamlit as st
 from dotenv import load_dotenv
 import pyperclip
-from streamlit_webrtc import webrtc_streamer, WebRtcMode
+from streamlit_webrtc import webrtc_streamer, WebRtcMode, AudioProcessorBase
 import av
 import speech_recognition as sr
 
@@ -100,18 +100,21 @@ def generate_explanation(client, log_text, language='en'):
         st.error(f"API Error: {str(e)}")
         return None
 
-# Audio callback for streamlit-webrtc
-def audio_callback(frame: av.AudioFrame) -> av.AudioFrame:
-    recognizer = sr.Recognizer()
-    audio_data = frame.to_ndarray()
-    try:
-        text = recognizer.recognize_google(audio_data, language="en-US")
-        st.session_state.input_text = text
-    except sr.UnknownValueError:
-        st.warning("Could not understand audio")
-    except sr.RequestError as e:
-        st.error(f"Recognition error: {e}")
-    return frame
+# Audio processor for streamlit-webrtc
+class AudioProcessor(AudioProcessorBase):
+    def __init__(self):
+        self.recognizer = sr.Recognizer()
+
+    def recv(self, frame: av.AudioFrame) -> av.AudioFrame:
+        audio_data = frame.to_ndarray()
+        try:
+            text = self.recognizer.recognize_google(audio_data, language="en-US")
+            st.session_state.input_text = text
+        except sr.UnknownValueError:
+            st.warning("Could not understand audio")
+        except sr.RequestError as e:
+            st.error(f"Recognition error: {e}")
+        return frame
 
 # Landing Page
 def landing_page():
@@ -195,10 +198,8 @@ def translator_page():
         webrtc_streamer(
             key="voice-input",
             mode=WebRtcMode.SENDONLY,
-            audio_receiver_size=1024,
+            audio_processor_factory=AudioProcessor,
             media_stream_constraints={"audio": True},
-            async_processing=True,
-            audio_callback=audio_callback,
         )
         input_text = st.session_state.input_text
 
