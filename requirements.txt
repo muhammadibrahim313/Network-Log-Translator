@@ -1,5 +1,6 @@
 # requirements.txt
-
+streamlit-webrtc
+speechrecognition
 streamlit==1.33.0
 python-dotenv==1.0.0
 sounddevice
