@@ -141,9 +141,9 @@ def about_us_page():
     cols = st.columns(3)
     team_members = [
         {"name": "Humam", "role": "Backend Developer", "image": "https://via.placeholder.com/150.png?text=Alice"},
-        {"name": "Muhammad Ibrahim Qasmi", "role": "Frontend Developer", "image": "https://via.placeholder.com/150.png?text=Bob"},
+        {"name": "Muhammad Ibrahim Qasmi", "role": "Data Scientist", "image": "https://media.licdn.com/dms/image/v2/D4D03AQFCNX1cJg9J8w/profile-displayphoto-shrink_400_400/profile-displayphoto-shrink_400_400/0/1732156800150?e=1743638400&v=beta&t=5nk_TRhQGlSX-I0tp0cf9ZHwJzFOLrLWWkxTdTrn6EU"},
         {"name": "Ahmad Fakhar", "role": "AI Engineer", "image": "https://via.placeholder.com/150.png?text=Charlie"},
-        {"name": "MuhammadZia", "role": "UI/UX Designer", "image": "https://via.placeholder.com/150.png?text=Diana"},
+        {"name": "Muhammad Zia", "role": "UI/UX Designer", "image": "https://via.placeholder.com/150.png?text=Diana"},
         {"name": "Tayyab Sajjad", "role": "Data Scientist", "image": "https://via.placeholder.com/150.png?text=Eve"},
         {"name": "Frank", "role": "Project Manager", "image": "https://via.placeholder.com/150.png?text=Frank"}
     ]
