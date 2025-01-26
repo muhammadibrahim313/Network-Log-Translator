@@ -1,23 +1,20 @@
 import os
 import streamlit as st
-import pyperclip
-from groq import Groq
-from gtts import gTTS
-import tempfile
+import speech_recognition as sr
 from dotenv import load_dotenv
-from streamlit_webrtc import webrtc_streamer, WebRtcMode, AudioProcessorBase
-import queue
+import pyperclip
+
+# Fix Groq import
+try:
+    from groq import Groq
+except ImportError:
+    from groq.client import Groq
 
 # Load environment variables
 load_dotenv()
 
-# Initialize Groq client
-def initialize_groq_client():
-    api_key = os.getenv("GROQ_API_KEY")
-    if not api_key:
-        st.error("GROQ_API_KEY not found in .env file")
-        return None
-    return Groq(api_key=api_key)
+# Configuration
+st.set_page_config(page_title="Network Log Translator", page_icon="🌐", layout="wide")
 
 # Predefined Common Network Errors
 COMMON_ERRORS = {
@@ -30,11 +27,25 @@ COMMON_ERRORS = {
 
 # Language to BCP-47 Code Mapping for Speech Recognition
 LANGUAGE_CODES = {
-    'English': 'en-US', 'Urdu': 'ur-PK', 'Spanish': 'es-ES',
-    'French': 'fr-FR', 'Arabic': 'ar-SA', 'Afrikaans': 'af-ZA',
-    'Zulu': 'zu-ZA', 'Xhosa': 'xh-ZA', 'Sotho': 'st-ZA',
+    'English': 'en-US',
+    'Urdu': 'ur-PK',
+    'Spanish': 'es-ES',
+    'French': 'fr-FR',
+    'Arabic': 'ar-SA',
+    'Afrikaans': 'af-ZA',
+    'Zulu': 'zu-ZA',
+    'Xhosa': 'xh-ZA',
+    'Sotho': 'st-ZA',
     'Tswana': 'tn-ZA'
 }
+
+# Initialize Groq client
+def initialize_groq_client():
+    api_key = os.getenv("GROQ_API_KEY")
+    if not api_key:
+        st.error("GROQ_API_KEY not found in .env file")
+        return None
+    return Groq(api_key=api_key)
 
 # Error classification system
 def classify_error(text):
@@ -87,28 +98,63 @@ def generate_explanation(client, log_text, language='en'):
         st.error(f"API Error: {str(e)}")
         return None
 
-# Text-to-speech conversion
-def text_to_speech(text, language='en'):
-    """Convert text to speech using gTTS."""
-    try:
-        tts = gTTS(text=text, lang=language, slow=False)
-        temp_audio = tempfile.NamedTemporaryFile(delete=False, suffix='.mp3')
-        tts.save(temp_audio.name)
-        return temp_audio.name
-    except Exception as e:
-        st.error(f"Error generating speech: {str(e)}")
-        return None
+# Speech-to-text conversion
+def speech_to_text(language_code):
+    r = sr.Recognizer()
+    with sr.Microphone() as source:
+        st.info("Listening... (5 second timeout)")
+        try:
+            audio = r.listen(source, timeout=5)
+            return r.recognize_google(audio, language=language_code)
+        except sr.WaitTimeoutError:
+            st.warning("Listening timed out")
+            return ""
+        except Exception as e:
+            st.error(f"Recognition error: {str(e)}")
+            return ""
 
-# Audio Processor for streamlit-webrtc
-class AudioProcessor(AudioProcessorBase):
-    def __init__(self):
-        self.frames_queue = queue.Queue()
+# Landing Page
+def landing_page():
+    st.title("🌐 Welcome to Network Log Translator")
+    st.markdown("""
+    **Simplify Complex Network Errors with AI-Powered Troubleshooting**
 
-    def recv(self, frame):
-        self.frames_queue.put(frame)
-        return frame
+    Our tool helps you:
+    - 🛠️ Diagnose network issues in seconds
+    - 🌍 Support for 10+ languages
+    - 🎤 Voice and text input options
+    - 📋 Quick fixes for common errors
 
-# Translator Page
+    Get started by navigating to the **Translator** page from the sidebar.
+    """)
+    st.image("https://ideogram.ai/assets/image/lossless/response/fjemlPTxRSagPZPIt9w44Q", use_column_width=True)
+
+# About Us Page
+def about_us_page():
+    st.title("👥 About Us")
+    st.markdown("""
+    We are a team of 6 passionate developers working to make network troubleshooting accessible to everyone.
+    """)
+
+    # Team Members
+    st.subheader("Meet the Team")
+    cols = st.columns(3)
+    team_members = [
+        {"name": "Humam", "role": "Backend Developer", "image": "https://via.placeholder.com/150.png?text=Alice"},
+        {"name": "Muhammad Ibrahim Qasmi", "role": "Data Scientist", "image": "https://media.licdn.com/dms/image/v2/D4D03AQFCNX1cJg9J8w/profile-displayphoto-shrink_400_400/profile-displayphoto-shrink_400_400/0/1732156800150?e=1743638400&v=beta&t=5nk_TRhQGlSX-I0tp0cf9ZHwJzFOLrLWWkxTdTrn6EU"},
+        {"name": "Ahmad Fakhar", "role": "AI Engineer", "image": "https://media.licdn.com/dms/image/v2/D4D03AQFrxTgmUio4Mw/profile-displayphoto-shrink_100_100/profile-displayphoto-shrink_100_100/0/1732197610882?e=1743638400&v=beta&t=we1bOWBoC3ZrXcus979HRY1yT9tRUsKa3dc7-JWZSXI"},
+        {"name": "Muhammad Zia", "role": "UI/UX Designer", "image": "https://via.placeholder.com/150.png?text=Diana"},
+        {"name": "Tayyab Sajjad", "role": "Data Scientist", "image": "https://media.licdn.com/dms/image/v2/D4E03AQELdwDpn2a9Bg/profile-displayphoto-shrink_100_100/profile-displayphoto-shrink_100_100/0/1732042661073?e=1743638400&v=beta&t=6vX_f7IeZETm70ZZ8x-h6_vH6uDJ9f-2S6SGPVcHIOU"},
+        {"name": "Frank", "role": "Project Manager", "image": "https://via.placeholder.com/150.png?text=Frank"}
+    ]
+
+    for idx, member in enumerate(team_members):
+        with cols[idx % 3]:
+            st.image(member["image"], width=150)
+            st.markdown(f"**{member['name']}**")
+            st.caption(member["role"])
+
+# Main Translator Page
 def translator_page():
     st.title("🌐 Smart Network Troubleshooter")
     
@@ -143,24 +189,10 @@ def translator_page():
                                 value=st.session_state.get('input_text', ''),
                                 height=100)
     else:
-        st.info("Click the button below to start recording your voice.")
-        webrtc_ctx = webrtc_streamer(
-            key="voice-recorder",
-            mode=WebRtcMode.SENDONLY,
-            audio_processor_factory=AudioProcessor,
-            media_stream_constraints={"audio": True},
-        )
-        if webrtc_ctx.audio_processor:
-            st.info("Recording... Speak now.")
-            try:
-                audio_frames = []
-                while True:
-                    frame = webrtc_ctx.audio_processor.frames_queue.get(timeout=5)
-                    audio_frames.append(frame)
-            except queue.Empty:
-                st.warning("No audio detected. Please try again.")
-            else:
-                input_text = "Voice input detected (transcription not implemented)."
+        voice_lang = st.selectbox("Voice Input Language", list(LANGUAGE_CODES.keys()))
+        if st.button("🎤 Start Recording"):
+            input_text = speech_to_text(LANGUAGE_CODES[voice_lang])
+            if input_text:
                 st.session_state.input_text = input_text
 
     # Main Processing
@@ -202,13 +234,6 @@ def translator_page():
         with st.expander("Detailed Analysis", expanded=True):
             st.markdown(explanation)
 
-        # Text-to-Speech for Explanation
-        if st.button("🔊 Listen to Explanation"):
-            audio_file = text_to_speech(explanation, lang_code)
-            if audio_file:
-                st.audio(audio_file)
-                os.unlink(audio_file)  # Clean up temporary file
-
         # Quick Fixes
         QUICK_FIXES = {
             "DNS": "ipconfig /flushdns",
@@ -238,22 +263,14 @@ def translator_page():
     if feedback:
         st.success("Thank you for your feedback!")
 
-# Main function
-def main():
-    st.set_page_config(
-        page_title="Network Log Translator",
-        page_icon="🌐",
-        layout="wide"
-    )
+# Sidebar Navigation
+st.sidebar.title("Navigation")
+page = st.sidebar.radio("Go to", ["🏠 Landing Page", "🌐 Translator", "👥 About Us"])
 
-    # Sidebar Navigation
-    st.sidebar.title("Navigation")
-    page = st.sidebar.radio("Go to", ["🌐 Translator"])
-
-    # Page Routing
-    if page == "🌐 Translator":
-        translator_page()
-
-# Run the app
-if __name__ == "__main__":
-    main()
+# Page Routing
+if page == "🏠 Landing Page":
+    landing_page()
+elif page == "🌐 Translator":
+    translator_page()
+elif page == "👥 About Us":
+    about_us_page()
