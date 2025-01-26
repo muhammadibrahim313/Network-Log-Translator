@@ -140,11 +140,11 @@ def about_us_page():
     st.subheader("Meet the Team")
     cols = st.columns(3)
     team_members = [
-        {"name": "Alice", "role": "Backend Developer", "image": "https://via.placeholder.com/150.png?text=Alice"},
-        {"name": "Bob", "role": "Frontend Developer", "image": "https://via.placeholder.com/150.png?text=Bob"},
-        {"name": "Charlie", "role": "AI Engineer", "image": "https://via.placeholder.com/150.png?text=Charlie"},
-        {"name": "Diana", "role": "UI/UX Designer", "image": "https://via.placeholder.com/150.png?text=Diana"},
-        {"name": "Eve", "role": "Data Scientist", "image": "https://via.placeholder.com/150.png?text=Eve"},
+        {"name": "Humam", "role": "Backend Developer", "image": "https://via.placeholder.com/150.png?text=Alice"},
+        {"name": "Muhammad Ibrahim Qasmi", "role": "Frontend Developer", "image": "https://via.placeholder.com/150.png?text=Bob"},
+        {"name": "Ahmad Fakhar", "role": "AI Engineer", "image": "https://via.placeholder.com/150.png?text=Charlie"},
+        {"name": "MuhammadZia", "role": "UI/UX Designer", "image": "https://via.placeholder.com/150.png?text=Diana"},
+        {"name": "Tayyab Sajjad", "role": "Data Scientist", "image": "https://via.placeholder.com/150.png?text=Eve"},
         {"name": "Frank", "role": "Project Manager", "image": "https://via.placeholder.com/150.png?text=Frank"}
     ]
 
