@@ -1,10 +1,3 @@
-# requirements.txt
-# streamlit==1.33.0
-# python-dotenv==1.0.0
-# groq==0.3.0
-# speechrecognition==3.10.0
-# pyperclip==1.8.2
-
 import os
 import streamlit as st
 import speech_recognition as sr
@@ -120,8 +113,49 @@ def speech_to_text(language_code):
             st.error(f"Recognition error: {str(e)}")
             return ""
 
-# Main function
-def main():
+# Landing Page
+def landing_page():
+    st.title("🌐 Welcome to Network Log Translator")
+    st.markdown("""
+    **Simplify Complex Network Errors with AI-Powered Troubleshooting**
+
+    Our tool helps you:
+    - 🛠️ Diagnose network issues in seconds
+    - 🌍 Support for 10+ languages
+    - 🎤 Voice and text input options
+    - 📋 Quick fixes for common errors
+
+    Get started by navigating to the **Translator** page from the sidebar.
+    """)
+    st.image("https://via.placeholder.com/800x400.png?text=Network+Log+Translator+Demo", use_column_width=True)
+
+# About Us Page
+def about_us_page():
+    st.title("👥 About Us")
+    st.markdown("""
+    We are a team of 6 passionate developers working to make network troubleshooting accessible to everyone.
+    """)
+
+    # Team Members
+    st.subheader("Meet the Team")
+    cols = st.columns(3)
+    team_members = [
+        {"name": "Alice", "role": "Backend Developer", "image": "https://via.placeholder.com/150.png?text=Alice"},
+        {"name": "Bob", "role": "Frontend Developer", "image": "https://via.placeholder.com/150.png?text=Bob"},
+        {"name": "Charlie", "role": "AI Engineer", "image": "https://via.placeholder.com/150.png?text=Charlie"},
+        {"name": "Diana", "role": "UI/UX Designer", "image": "https://via.placeholder.com/150.png?text=Diana"},
+        {"name": "Eve", "role": "Data Scientist", "image": "https://via.placeholder.com/150.png?text=Eve"},
+        {"name": "Frank", "role": "Project Manager", "image": "https://via.placeholder.com/150.png?text=Frank"}
+    ]
+
+    for idx, member in enumerate(team_members):
+        with cols[idx % 3]:
+            st.image(member["image"], width=150)
+            st.markdown(f"**{member['name']}**")
+            st.caption(member["role"])
+
+# Main Translator Page
+def translator_page():
     st.title("🌐 Smart Network Troubleshooter")
     
     # Initialize session state
@@ -229,6 +263,14 @@ def main():
     if feedback:
         st.success("Thank you for your feedback!")
 
-# Run the app
-if __name__ == "__main__":
-    main()
+# Sidebar Navigation
+st.sidebar.title("Navigation")
+page = st.sidebar.radio("Go to", ["🏠 Landing Page", "🌐 Translator", "👥 About Us"])
+
+# Page Routing
+if page == "🏠 Landing Page":
+    landing_page()
+elif page == "🌐 Translator":
+    translator_page()
+elif page == "👥 About Us":
+    about_us_page()
