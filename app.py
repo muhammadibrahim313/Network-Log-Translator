@@ -99,8 +99,102 @@ def set_custom_styling():
 # Configuration
 st.set_page_config(page_title="Network Log Translator", page_icon="🌐", layout="wide")
 
-# Rest of your previous code remains the same...
-# [Keep all the previous functions: COMMON_ERRORS, LANGUAGE_CODES, etc.]
+# Predefined Common Network Errors
+COMMON_ERRORS = {
+    "DNS_PROBE_FINISHED_NO_INTERNET": "DNS resolution failed. Unable to connect to internet.",
+    "Connection Timed Out": "Network connection could not be established within expected timeframe.",
+    "No Route to Host": "Network path to destination is unavailable.",
+    "Connection Refused": "Remote server rejected connection attempt.",
+    "SSL Handshake Failed": "Secure connection could not be established.",
+}
+
+# Language to BCP-47 Code Mapping for Speech Recognition
+LANGUAGE_CODES = {
+    'English': 'en-US',
+    'Urdu': 'ur-PK',
+    'Spanish': 'es-ES',
+    'French': 'fr-FR',
+    'Arabic': 'ar-SA',
+    'Afrikaans': 'af-ZA',
+    'Zulu': 'zu-ZA',
+    'Xhosa': 'xh-ZA',
+    'Sotho': 'st-ZA',
+    'Tswana': 'tn-ZA'
+}
+
+# Initialize Groq client
+def initialize_groq_client():
+    api_key = os.getenv("GROQ_API_KEY")
+    if not api_key:
+        st.error("GROQ_API_KEY not found in .env file")
+        return None
+    return Groq(api_key=api_key)
+
+# Error classification system
+def classify_error(text):
+    error_types = {
+        "DNS": ["dns", "domain", "server"],
+        "SSL": ["ssl", "certificate", "handshake"],
+        "Connection": ["connection", "timeout", "refused", "route"]
+    }
+    text_lower = text.lower()
+    for etype, keywords in error_types.items():
+        if any(kw in text_lower for kw in keywords):
+            return etype
+    return "Network"
+
+# Severity detection
+def get_severity(text):
+    text_lower = text.lower()
+    if "critical" in text_lower: return "Critical"
+    if "warning" in text_lower: return "Warning"
+    if "severe" in text_lower: return "Critical"
+    return "Info"
+
+# Generate explanation using Groq API
+def generate_explanation(client, log_text, language='en'):
+    try:
+        system_prompts = {
+            'en': "You are a network troubleshooting assistant in English.",
+            'es': "Eres un asistente de solución de problemas de red en español.",
+            'fr': "Vous êtes un assistant de dépannage réseau en français.",
+            'ur': "آپ اردو میں نیٹ ورک ٹروبل شوٹنگ اسسٹنٹ ہیں۔",
+            'ar': "أنت مساعد استكشاف أخطاء الشبكة باللغة العربية.",
+            'af': "Jy is 'n netwerk-probleemoplossingsassistent in Afrikaans.",
+            'zu': "Ungusizo lokuxazulula amaproblem emseth-network ngesiZulu.",
+            'xh': "Ungomnxeba wokusungula amaproblem emanyango ekuqhubekeni ngesiXhosa.",
+            'st': "O moagi wa bothata ba network ka Sesotho.",
+            'tn': "O thutapulamolemo ya network ka Setswana."
+        }
+        
+        response = client.chat.completions.create(
+            model="llama3-70b-8192",
+            messages=[
+                {"role": "system", "content": f"{system_prompts.get(language, 'en')} Provide detailed analysis and step-by-step solutions."},
+                {"role": "user", "content": f"Analyze this network error: {log_text}"}
+            ],
+            temperature=0.3,
+            max_tokens=1200
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        st.error(f"API Error: {str(e)}")
+        return None
+
+# Speech-to-text conversion
+def speech_to_text(language_code):
+    r = sr.Recognizer()
+    with sr.Microphone() as source:
+        st.info("Listening... (5 second timeout)")
+        try:
+            audio = r.listen(source, timeout=5)
+            return r.recognize_google(audio, language=language_code)
+        except sr.WaitTimeoutError:
+            st.warning("Listening timed out")
+            return ""
+        except Exception as e:
+            st.error(f"Recognition error: {str(e)}")
+            return ""
 
 # Updated Landing Page with Premium Design
 def landing_page():
