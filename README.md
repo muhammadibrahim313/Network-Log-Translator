@@ -24,9 +24,8 @@ A powerful, AI-driven tool that simplifies network error interpretation across m
 ## 🛠️ Installation
 
 1. Clone the repository:
-```bash
-git clone https://github.com/yourusername/network-log-translator.git
-cd network-log-translator
+```
+bashhttps://github.com/muhammadibrahim313/Network-Log-Translator.git
 ```
 
 2. Install required packages:
