@@ -1,4 +1,4 @@
-<div align="center">
+<div align="center"> 
 
 # 🌐 Network Log Translator
 
