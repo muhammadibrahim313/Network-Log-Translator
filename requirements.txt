@@ -11,6 +11,6 @@ speechrecognition
 pyperclip
 gtts
 streamlit-webrtc
-pyaudio
+
 
 
